@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Math Function Plotter</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            900: '#0c4a6e'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Math.js for safe math expression parsing and derivative calculation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Custom Styles -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+        }
+        
+        .code-font {
+            font-family: 'Fira Code', monospace;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(156, 163, 175, 0.4);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(156, 163, 175, 0.6);
+        }
+
+        canvas {
+            touch-action: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-100 min-h-screen flex flex-col transition-colors duration-200">
+
+    <!-- Navigation Header -->
+    <header class="border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md sticky top-0 z-30 px-4 py-3 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+            <div class="p-2 bg-brand-500/10 text-brand-600 dark:text-brand-400 rounded-xl">
+                <i data-lucide="line-chart" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg leading-tight">Graph Studio Pro</h1>
+                <p class="text-xs text-gray-500 dark:text-gray-400">Interactive Mathematical Function Plotter</p>
+            </div>
+        </div>
+
+        <!-- Controls Header Right -->
+        <div class="flex items-center space-x-2">
+            <!-- Preset Library Dropdown -->
+            <div class="relative inline-block text-left">
+                <button id="presetBtn" class="flex items-center space-x-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition">
+                    <i data-lucide="book-open" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">Presets</span>
+                    <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+                </button>
+                <div id="presetMenu" class="hidden absolute right-0 mt-2 w-56 rounded-xl bg-white dark:bg-gray-800 shadow-xl border border-gray-200 dark:border-gray-700 py-1.5 z-50">
+                    <div class="px-3 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">Presets Library</div>
+                    <button onclick="loadPreset('trig')" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700/60 transition">Trigonometric Wave</button>
+                    <button onclick="loadPreset('polynomial')" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700/60 transition">Cubic Polynomial</button>
+                    <button onclick="loadPreset('damped')" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700/60 transition">Damped Harmonic Oscillator</button>
+                    <button onclick="loadPreset('rational')" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700/60 transition">Rational Function</button>
+                    <button onclick="loadPreset('gaussian')" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700/60 transition">Gaussian Distribution</button>
+                </div>
+            </div>
+
+            <!-- Export Graph Image -->
+            <button onclick="exportPNG()" title="Export PNG Image" class="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition text-gray-600 dark:text-gray-300">
+                <i data-lucide="download" class="w-4 h-4"></i>
+            </button>
+
+            <!-- Dark / Light Theme Toggle -->
+            <button id="themeToggleBtn" class="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition text-gray-600 dark:text-gray-300">
+                <i data-lucide="moon" class="w-4 h-4 hidden dark:block"></i>
+                <i data-lucide="sun" class="w-4 h-4 block dark:hidden"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <div class="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+        
+        <!-- Sidebar Panel: Functions & Settings -->
+        <aside class="w-full md:w-80 lg:w-96 border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-800 bg-white/50 dark:bg-gray-900/50 flex flex-col h-auto md:h-full max-h-[45vh] md:max-h-full overflow-y-auto z-10">
+            
+            <!-- Functions Container Header -->
+            <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-white dark:bg-gray-900 sticky top-0 z-10">
+                <div class="flex items-center space-x-2">
+                    <i data-lucide="function-square" class="w-5 h-5 text-brand-500"></i>
+                    <h2 class="font-semibold text-sm">Functions</h2>
+                </div>
+                <button onclick="addFunctionCard()" class="flex items-center space-x-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-brand-500 hover:bg-brand-600 text-white transition shadow-sm">
+                    <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                    <span>Add Function</span>
+                </button>
+            </div>
+
+            <!-- List of Functions -->
+            <div id="functionsList" class="p-4 space-y-3 flex-1">
+                <!-- Dynamic function cards inserted here -->
+            </div>
+
+            <!-- Plot Analysis & Tools Toggle Options -->
+            <div class="p-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/30 space-y-3">
+                <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Analysis Tools</div>
+                
+                <label class="flex items-center justify-between text-xs cursor-pointer group">
+                    <span class="flex items-center space-x-2 text-gray-700 dark:text-gray-300">
+                        <i data-lucide="tangent" class="w-4 h-4 text-brand-500"></i>
+                        <span>Tangent Line & Slope</span>
+                    </span>
+                    <input type="checkbox" id="toggleTangent" onchange="redraw()" class="rounded border-gray-300 text-brand-600 focus:ring-brand-500 dark:bg-gray-800 dark:border-gray-700">
+                </label>
+
+                <label class="flex items-center justify-between text-xs cursor-pointer group">
+                    <span class="flex items-center space-x-2 text-gray-700 dark:text-gray-300">
+                        <i data-lucide="split" class="w-4 h-4 text-brand-500"></i>
+                        <span>Show First Derivative f'(x)</span>
+                    </span>
+                    <input type="checkbox" id="toggleDerivative" onchange="redraw()" class="rounded border-gray-300 text-brand-600 focus:ring-brand-500 dark:bg-gray-800 dark:border-gray-700">
+                </label>
+
+                <label class="flex items-center justify-between text-xs cursor-pointer group">
+                    <span class="flex items-center space-x-2 text-gray-700 dark:text-gray-300">
+                        <i data-lucide="disc" class="w-4 h-4 text-brand-500"></i>
+                        <span>Highlight Critical Points (Roots/Extrema)</span>
+                    </span>
+                    <input type="checkbox" id="toggleCritical" onchange="redraw()" class="rounded border-gray-300 text-brand-600 focus:ring-brand-500 dark:bg-gray-800 dark:border-gray-700" checked>
+                </label>
+            </div>
+
+            <!-- Viewport Domain / Range Controls -->
+            <div class="p-4 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 space-y-3">
+                <div class="flex justify-between items-center">
+                    <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Viewport Axis Settings</div>
+                    <button onclick="resetView()" class="text-xs text-brand-500 hover:underline">Reset Zoom</button>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                        <label class="block text-gray-500 dark:text-gray-400 mb-1">X Min</label>
+                        <input type="number" id="xMinInput" step="any" class="w-full px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 code-font text-xs" onchange="updateViewportFromInputs()">
+                    </div>
+                    <div>
+                        <label class="block text-gray-500 dark:text-gray-400 mb-1">X Max</label>
+                        <input type="number" id="xMaxInput" step="any" class="w-full px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 code-font text-xs" onchange="updateViewportFromInputs()">
+                    </div>
+                    <div>
+                        <label class="block text-gray-500 dark:text-gray-400 mb-1">Y Min</label>
+                        <input type="number" id="yMinInput" step="any" class="w-full px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 code-font text-xs" onchange="updateViewportFromInputs()">
+                    </div>
+                    <div>
+                        <label class="block text-gray-500 dark:text-gray-400 mb-1">Y Max</label>
+                        <input type="number" id="yMaxInput" step="any" class="w-full px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 code-font text-xs" onchange="updateViewportFromInputs()">
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between pt-1">
+                    <label class="flex items-center space-x-2 text-xs text-gray-600 dark:text-gray-400 cursor-pointer">
+                        <input type="checkbox" id="toggleGrid" onchange="redraw()" checked class="rounded border-gray-300 text-brand-600 dark:bg-gray-800 dark:border-gray-700">
+                        <span>Show Grid Lines</span>
+                    </label>
+                    <label class="flex items-center space-x-2 text-xs text-gray-600 dark:text-gray-400 cursor-pointer">
+                        <input type="checkbox" id="toggleAxes" onchange="redraw()" checked class="rounded border-gray-300 text-brand-600 dark:bg-gray-800 dark:border-gray-700">
+                        <span>Show Axes</span>
+                    </label>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Canvas Display Area -->
+        <main class="flex-1 relative bg-gray-50 dark:bg-gray-950 flex flex-col justify-center items-center overflow-hidden">
+            <canvas id="graphCanvas" class="w-full h-full cursor-crosshair"></canvas>
+
+            <!-- Floating Overlay Canvas Controls -->
+            <div class="absolute bottom-4 right-4 flex flex-col space-y-2 z-20">
+                <button onclick="zoom(0.8)" title="Zoom In" class="p-2.5 rounded-xl bg-white/90 dark:bg-gray-800/90 shadow-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                    <i data-lucide="zoom-in" class="w-5 h-5"></i>
+                </button>
+                <button onclick="zoom(1.25)" title="Zoom Out" class="p-2.5 rounded-xl bg-white/90 dark:bg-gray-800/90 shadow-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                    <i data-lucide="zoom-out" class="w-5 h-5"></i>
+                </button>
+                <button onclick="resetView()" title="Center & Reset View" class="p-2.5 rounded-xl bg-white/90 dark:bg-gray-800/90 shadow-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                    <i data-lucide="locate-fixed" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Dynamic Coordinate Tooltip Badge -->
+            <div id="coordBadge" class="hidden absolute top-4 left-4 z-20 px-3 py-1.5 rounded-lg bg-gray-900/90 dark:bg-gray-800/90 text-white border border-gray-700/50 shadow-lg backdrop-blur-md text-xs code-font pointer-events-none transition-opacity">
+                x: 0.000, y: 0.000
+            </div>
+
+            <!-- Inspection Information Card -->
+            <div id="inspectionCard" class="hidden absolute top-4 right-4 z-20 max-w-xs w-full bg-white/95 dark:bg-gray-800/95 p-3 rounded-xl border border-gray-200 dark:border-gray-700 shadow-xl backdrop-blur-md text-xs space-y-1">
+                <div class="font-bold border-b border-gray-200 dark:border-gray-700 pb-1 flex justify-between items-center text-brand-600 dark:text-brand-400">
+                    <span>Point Inspection</span>
+                    <i data-lucide="activity" class="w-3.5 h-3.5"></i>
+                </div>
+                <div id="inspectionDetails" class="space-y-1 text-gray-600 dark:text-gray-300 code-font">
+                    <!-- Dynamic details injected here -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Application Script Logic -->
+    <script>
+        // Palette choices for added functions
+        const COLOR_PALETTE = [
+            '#0ea5e9', // Blue
+            '#ef4444', // Red
+            '#10b981', // Emerald
+            '#f59e0b', // Amber
+            '#8b5cf6', // Purple
+            '#ec4899', // Pink
+            '#14b8a6'  // Teal
+        ];
+
+        // Default viewport boundaries
+        let view = {
+            xMin: -10,
+            xMax: 10,
+            yMin: -6,
+            yMax: 6
+        };
+
+        // State variables
+        let functions = [];
+        let canvas, ctx;
+        let isDragging = false;
+        let dragStart = { x: 0, y: 0 };
+        let mousePos = { x: 0, y: 0, inside: false };
+
+        // Initialize App on DOM Ready
+        window.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            canvas = document.getElementById('graphCanvas');
+            ctx = canvas.getContext('2d');
+
+            // Setup Event Handlers
+            window.addEventListener('resize', resizeCanvas);
+            setupCanvasInteraction();
+            setupPresetDropdown();
+            setupThemeToggle();
+
+            // Initial Default Functions
+            functions = [
+                { id: 'f1', expr: 'sin(x)', color: '#0ea5e9', compiled: null, compiledDeriv: null, visible: true },
+                { id: 'f2', expr: '0.2 * x^2 - 3', color: '#ef4444', compiled: null, compiledDeriv: null, visible: true }
+            ];
+
+            compileAllFunctions();
+            renderFunctionsList();
+            resizeCanvas();
+        });
+
+        // Theme Toggle Handler
+        function setupThemeToggle() {
+            const btn = document.getElementById('themeToggleBtn');
+            btn.addEventListener('click', () => {
+                document.documentElement.classList.toggle('dark');
+                redraw();
+            });
+        }
+
+        // Dropdown Click Handlers
+        function setupPresetDropdown() {
+            const btn = document.getElementById('presetBtn');
+            const menu = document.getElementById('presetMenu');
+
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                menu.classList.toggle('hidden');
+            });
+
+            document.addEventListener('click', () => {
+                menu.classList.add('hidden');
+            });
+        }
+
+        // Preset Library Loader
+        function loadPreset(type) {
+            switch(type) {
+                case 'trig':
+                    functions = [
+                        { id: 'f1', expr: 'sin(x)', color: '#0ea5e9', compiled: null, compiledDeriv: null, visible: true },
+                        { id: 'f2', expr: 'cos(2 * x)', color: '#f59e0b', compiled: null, compiledDeriv: null, visible: true }
+                    ];
+                    setViewBounds(-2 * Math.PI, 2 * Math.PI, -3, 3);
+                    break;
+                case 'polynomial':
+                    functions = [
+                        { id: 'f1', expr: '0.1 * (x + 4) * (x + 1) * (x - 3)', color: '#10b981', compiled: null, compiledDeriv: null, visible: true }
+                    ];
+                    setViewBounds(-6, 6, -6, 6);
+                    break;
+                case 'damped':
+                    functions = [
+                        { id: 'f1', expr: 'exp(-0.2 * x) * cos(3 * x)', color: '#8b5cf6', compiled: null, compiledDeriv: null, visible: true }
+                    ];
+                    setViewBounds(-2, 12, -2, 2);
+                    break;
+                case 'rational':
+                    functions = [
+                        { id: 'f1', expr: '(x^2 - 1) / (x^2 - 4)', color: '#ec4899', compiled: null, compiledDeriv: null, visible: true }
+                    ];
+                    setViewBounds(-6, 6, -6, 6);
+                    break;
+                case 'gaussian':
+                    functions = [
+                        { id: 'f1', expr: 'exp(-x^2)', color: '#0ea5e9', compiled: null, compiledDeriv: null, visible: true },
+                        { id: 'f2', expr: 'derivative(exp(-x^2), x)', color: '#ef4444', compiled: null, compiledDeriv: null, visible: true }
+                    ];
+                    setViewBounds(-4, 4, -1.5, 1.5);
+                    break;
+            }
+            compileAllFunctions();
+            renderFunctionsList();
+            redraw();
+        }
+
+        function setViewBounds(xMin, xMax, yMin, yMax) {
+            view.xMin = xMin;
+            view.xMax = xMax;
+            view.yMin = yMin;
+            view.yMax = yMax;
+            syncInputsFromViewport();
+        }
+
+        // Resize Canvas dynamically
+        function resizeCanvas() {
+            if (!canvas) return;
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * window.devicePixelRatio;
+            canvas.height = rect.height * window.devicePixelRatio;
+            syncInputsFromViewport();
+            redraw();
+        }
+
+        // Compile Math.js functions safely
+        function compileAllFunctions() {
+            functions.forEach(fn => {
+                try {
+                    fn.compiled = math.compile(fn.expr);
+                    // Generate symbolic or numerical derivative expression
+                    try {
+                        const parsed = math.parse(fn.expr);
+                        const derivNode = math.derivative(parsed, 'x');
+                        fn.compiledDeriv = derivNode.compile();
+                    } catch (e) {
+                        fn.compiledDeriv = null;
+                    }
+                    fn.error = false;
+                } catch (err) {
+                    fn.compiled = null;
+                    fn.compiledDeriv = null;
+                    fn.error = true;
+                }
+            });
+        }
+
+        // Render Sidebar Function Cards
+        function renderFunctionsList() {
+            const container = document.getElementById('functionsList');
+            container.innerHTML = '';
+
+            functions.forEach((fn, index) => {
+                const card = document.createElement('div');
+                card.className = `p-3 rounded-xl border transition ${
+                    fn.error 
+                        ? 'bg-red-50/50 border-red-300 dark:bg-red-950/20 dark:border-red-800' 
+                        : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm'
+                }`;
+
+                card.innerHTML = `
+                    <div class="flex items-center space-x-2 mb-2">
+                        <input type="color" value="${fn.color}" onchange="updateFunctionColor('${fn.id}', this.value)" class="w-6 h-6 rounded border-0 cursor-pointer bg-transparent">
+                        <div class="font-bold text-xs code-font text-gray-500">f${index + 1}(x) =</div>
+                        <input type="text" value="${escapeHtml(fn.expr)}" oninput="updateFunctionExpr('${fn.id}', this.value)" 
+                               placeholder="e.g. sin(x)" 
+                               class="flex-1 px-2.5 py-1 rounded-lg border ${fn.error ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-600 focus:ring-brand-500'} bg-gray-50 dark:bg-gray-900 code-font text-xs font-semibold text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-1">
+                        <button onclick="toggleFunctionVisibility('${fn.id}')" title="Toggle Visibility" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                            <i data-lucide="${fn.visible ? 'eye' : 'eye-off'}" class="w-4 h-4"></i>
+                        </button>
+                        ${functions.length > 1 ? `
+                            <button onclick="removeFunction('${fn.id}')" title="Remove Function" class="text-gray-400 hover:text-red-500 transition">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        ` : ''}
+                    </div>
+                    ${fn.error ? `<div class="text-[10px] text-red-500 mt-1 pl-8">Invalid expression</div>` : ''}
+                `;
+                container.appendChild(card);
+            });
+
+            lucide.createIcons();
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        }
+
+        // Functions State Modifiers
+        function addFunctionCard() {
+            const nextColor = COLOR_PALETTE[functions.length % COLOR_PALETTE.length];
+            const newFn = {
+                id: 'fn_' + Date.now(),
+                expr: 'x',
+                color: nextColor,
+                compiled: null,
+                compiledDeriv: null,
+                visible: true
+            };
+            functions.push(newFn);
+            compileAllFunctions();
+            renderFunctionsList();
+            redraw();
+        }
+
+        function removeFunction(id) {
+            functions = functions.filter(f => f.id !== id);
+            compileAllFunctions();
+            renderFunctionsList();
+            redraw();
+        }
+
+        function updateFunctionExpr(id, val) {
+            const fn = functions.find(f => f.id === id);
+            if (fn) {
+                fn.expr = val;
+                compileAllFunctions();
+                redraw();
+            }
+        }
+
+        function updateFunctionColor(id, color) {
+            const fn = functions.find(f => f.id === id);
+            if (fn) {
+                fn.color = color;
+                redraw();
+            }
+        }
+
+        function toggleFunctionVisibility(id) {
+            const fn = functions.find(f => f.id === id);
+            if (fn) {
+                fn.visible = !fn.visible;
+                renderFunctionsList();
+                redraw();
+            }
+        }
+
+        // Canvas Coordinate Mapping Utilities
+        function toScreenX(x) {
+            return (x - view.xMin) / (view.xMax - view.xMin) * canvas.width;
+        }
+
+        function toScreenY(y) {
+            return canvas.height - (y - view.yMin) / (view.yMax - view.yMin) * canvas.height;
+        }
+
+        function toMathX(px) {
+            return view.xMin + (px / canvas.width) * (view.xMax - view.xMin);
+        }
+
+        function toMathY(py) {
+            return view.yMin + ((canvas.height - py) / canvas.height) * (view.yMax - view.yMin);
+        }
+
+        // Core Drawing / Plotting Engine
+        function redraw() {
+            if (!ctx || !canvas) return;
+
+            const isDark = document.documentElement.classList.contains('dark');
+            const bgColor = isDark ? '#030712' : '#f9fafb';
+            const gridColor = isDark ? 'rgba(255, 255, 255, 0.07)' : 'rgba(0, 0, 0, 0.07)';
+            const axisColor = isDark ? '#6b7280' : '#4b5563';
+            const textColor = isDark ? '#9ca3af' : '#4b5563';
+
+            // Clear Background
+            ctx.fillStyle = bgColor;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Grid
+            if (document.getElementById('toggleGrid').checked) {
+                drawGrid(gridColor, textColor);
+            }
+
+            // Draw Main Axes
+            if (document.getElementById('toggleAxes').checked) {
+                drawAxes(axisColor);
+            }
+
+            // Options toggles
+            const showDeriv = document.getElementById('toggleDerivative').checked;
+            const showCritical = document.getElementById('toggleCritical').checked;
+
+            // Evaluate and Plot Functions
+            functions.forEach(fn => {
+                if (!fn.visible || !fn.compiled || fn.error) return;
+
+                // 1. Draw Function Curve
+                drawFunctionCurve(fn.compiled, fn.color, 3, false);
+
+                // 2. Draw Derivative if enabled
+                if (showDeriv && fn.compiledDeriv) {
+                    drawFunctionCurve(fn.compiledDeriv, fn.color, 1.5, true);
+                }
+
+                // 3. Detect and Draw Critical Points
+                if (showCritical) {
+                    drawCriticalPoints(fn);
+                }
+            });
+
+            // Draw Tangent Line & Crosshair on Mouse Hover
+            if (mousePos.inside) {
+                drawHoverEffects();
+            }
+        }
+
+        // Grid Rendering Logic
+        function drawGrid(gridColor, textColor) {
+            const xSpan = view.xMax - view.xMin;
+            const ySpan = view.yMax - view.yMin;
+
+            // Calculate nice tick step intervals
+            const xStep = calculateGridStep(xSpan);
+            const yStep = calculateGridStep(ySpan);
+
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = gridColor;
+            ctx.fillStyle = textColor;
+            ctx.font = `${Math.max(10, Math.floor(11 * window.devicePixelRatio))}px Inter, sans-serif`;
+
+            // Vertical Grid Lines & Labels
+            const firstX = Math.floor(view.xMin / xStep) * xStep;
+            for (let x = firstX; x <= view.xMax; x += xStep) {
+                const sx = toScreenX(x);
+                ctx.beginPath();
+                ctx.moveTo(sx, 0);
+                ctx.lineTo(sx, canvas.height);
+                ctx.stroke();
+
+                // Axis label offset
+                const sy = Math.min(Math.max(toScreenY(0), 20 * window.devicePixelRatio), canvas.height - 10 * window.devicePixelRatio);
+                if (Math.abs(x) > 1e-9) {
+                    ctx.fillText(formatNumber(x), sx + 4, sy - 4);
+                }
+            }
+
+            // Horizontal Grid Lines & Labels
+            const firstY = Math.floor(view.yMin / yStep) * yStep;
+            for (let y = firstY; y <= view.yMax; y += yStep) {
+                const sy = toScreenY(y);
+                ctx.beginPath();
+                ctx.moveTo(0, sy);
+                ctx.lineTo(canvas.width, sy);
+                ctx.stroke();
+
+                const sx = Math.min(Math.max(toScreenX(0), 10 * window.devicePixelRatio), canvas.width - 40 * window.devicePixelRatio);
+                if (Math.abs(y) > 1e-9) {
+                    ctx.fillText(formatNumber(y), sx + 4, sy - 4);
+                }
+            }
+        }
+
+        function calculateGridStep(span) {
+            const rawStep = span / 10;
+            const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+            const residual = rawStep / mag;
+
+            if (residual < 1.5) return mag;
+            if (residual < 3.5) return 2 * mag;
+            if (residual < 7.5) return 5 * mag;
+            return 10 * mag;
+        }
+
+        function formatNumber(num) {
+            if (Math.abs(num) < 0.001 || Math.abs(num) >= 10000) {
+                return num.toExponential(2);
+            }
+            return parseFloat(num.toFixed(4)).toString();
+        }
+
+        // Main Coordinate Axes
+        function drawAxes(axisColor) {
+            ctx.lineWidth = 2 * window.devicePixelRatio;
+            ctx.strokeStyle = axisColor;
+
+            const originX = toScreenX(0);
+            const originY = toScreenY(0);
+
+            // X-Axis
+            ctx.beginPath();
+            ctx.moveTo(0, originY);
+            ctx.lineTo(canvas.width, originY);
+            ctx.stroke();
+
+            // Y-Axis
+            ctx.beginPath();
+            ctx.moveTo(originX, 0);
+            ctx.lineTo(originX, canvas.height);
+            ctx.stroke();
+        }
+
+        // Robust Function Plotter Engine
+        function drawFunctionCurve(compiledFn, color, lineWidth, isDashed = false) {
+            ctx.save();
+            ctx.lineWidth = lineWidth * window.devicePixelRatio;
+            ctx.strokeStyle = color;
+            if (isDashed) {
+                ctx.setLineDash([6 * window.devicePixelRatio, 4 * window.devicePixelRatio]);
+            }
+
+            const stepPx = 1 * window.devicePixelRatio; // Sampling step pixel width
+            let drawing = false;
+
+            ctx.beginPath();
+            for (let px = 0; px <= canvas.width; px += stepPx) {
+                const x = toMathX(px);
+                let y;
+
+                try {
+                    y = compiledFn.evaluate({ x: x });
+                } catch (e) {
+                    y = NaN;
+                }
+
+                if (typeof y === 'object' && y.re !== undefined) y = y.re; // Handle complex return numbers safely
+
+                if (isFinite(y) && !isNaN(y)) {
+                    const py = toScreenY(y);
+                    // Discontinuity jump check
+                    if (py < -canvas.height || py > canvas.height * 2) {
+                        drawing = false;
+                    } else {
+                        if (!drawing) {
+                            ctx.moveTo(px, py);
+                            drawing = true;
+                        } else {
+                            ctx.lineTo(px, py);
+                        }
+                    }
+                } else {
+                    drawing = false;
+                }
+            }
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // Root and Critical Points Analyzer
+        function drawCriticalPoints(fn) {
+            if (!fn.compiled) return;
+
+            const stepPx = 12 * window.devicePixelRatio;
+            const mathStep = (view.xMax - view.xMin) * (stepPx / canvas.width);
+
+            let prevX = view.xMin;
+            let prevY = safeEval(fn.compiled, prevX);
+            let prevDeriv = fn.compiledDeriv ? safeEval(fn.compiledDeriv, prevX) : null;
+
+            for (let x = view.xMin + mathStep; x <= view.xMax; x += mathStep) {
+                const y = safeEval(fn.compiled, x);
+                const deriv = fn.compiledDeriv ? safeEval(fn.compiledDeriv, x) : null;
+
+                // 1. Root Check (Sign flip in Y)
+                if (prevY !== null && y !== null && Math.sign(prevY) !== Math.sign(y) && Math.abs(y - prevY) < 10) {
+                    const rootX = findBisectionRoot(fn.compiled, prevX, x);
+                    if (rootX !== null) {
+                        drawPointMarker(rootX, 0, '#10b981', 'Root');
+                    }
+                }
+
+                // 2. Extrema Check (Sign flip in First Derivative)
+                if (prevDeriv !== null && deriv !== null && Math.sign(prevDeriv) !== Math.sign(deriv)) {
+                    const extremaX = findBisectionRoot(fn.compiledDeriv, prevX, x);
+                    if (extremaX !== null) {
+                        const extremaY = safeEval(fn.compiled, extremaX);
+                        if (extremaY !== null) {
+                            drawPointMarker(extremaX, extremaY, '#f59e0b', 'Extrema');
+                        }
+                    }
+                }
+
+                prevX = x;
+                prevY = y;
+                prevDeriv = deriv;
+            }
+        }
+
+        function safeEval(compiledFn, xVal) {
+            try {
+                const res = compiledFn.evaluate({ x: xVal });
+                if (typeof res === 'number' && isFinite(res)) return res;
+                return null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function findBisectionRoot(compiledFn, a, b, iterations = 10) {
+            let fa = safeEval(compiledFn, a);
+            let fb = safeEval(compiledFn, b);
+            if (fa === null || fb === null) return null;
+
+            let mid = a;
+            for (let i = 0; i < iterations; i++) {
+                mid = (a + b) / 2;
+                let fmid = safeEval(compiledFn, mid);
+                if (fmid === null) return null;
+
+                if (Math.abs(fmid) < 1e-6) return mid;
+                if (Math.sign(fa) === Math.sign(fmid)) {
+                    a = mid;
+                    fa = fmid;
+                } else {
+                    b = mid;
+                    fb = fmid;
+                }
+            }
+            return mid;
+        }
+
+        function drawPointMarker(x, y, color, label) {
+            const sx = toScreenX(x);
+            const sy = toScreenY(y);
+
+            if (sx < 0 || sx > canvas.width || sy < 0 || sy > canvas.height) return;
+
+            ctx.save();
+            ctx.fillStyle = color;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2 * window.devicePixelRatio;
+
+            ctx.beginPath();
+            ctx.arc(sx, sy, 5 * window.devicePixelRatio, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // Tangent & Crosshair Mouse Tracking Overlay
+        function drawHoverEffects() {
+            const mathX = toMathX(mousePos.x);
+            const showTangent = document.getElementById('toggleTangent').checked;
+            const card = document.getElementById('inspectionCard');
+            const cardDetails = document.getElementById('inspectionDetails');
+
+            let cardContent = `<div class="text-gray-400">Cursor: x = ${mathX.toFixed(3)}</div>`;
+
+            // Draw Crosshair
+            ctx.save();
+            ctx.strokeStyle = 'rgba(156, 163, 175, 0.4)';
+            ctx.setLineDash([4 * window.devicePixelRatio, 4 * window.devicePixelRatio]);
+            ctx.lineWidth = 1 * window.devicePixelRatio;
+
+            ctx.beginPath();
+            ctx.moveTo(mousePos.x, 0);
+            ctx.lineTo(mousePos.x, canvas.height);
+            ctx.moveTo(0, mousePos.y);
+            ctx.lineTo(canvas.width, mousePos.y);
+            ctx.stroke();
+            ctx.restore();
+
+            // Evaluate Active Visible Functions at Current Cursor X
+            functions.forEach(fn => {
+                if (!fn.visible || !fn.compiled || fn.error) return;
+
+                const yVal = safeEval(fn.compiled, mathX);
+                if (yVal === null) return;
+
+                const sy = toScreenY(yVal);
+
+                // Highlight Point on Curve
+                ctx.save();
+                ctx.fillStyle = fn.color;
+                ctx.beginPath();
+                ctx.arc(mousePos.x, sy, 6 * window.devicePixelRatio, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2 * window.devicePixelRatio;
+                ctx.stroke();
+                ctx.restore();
+
+                let slope = null;
+                if (fn.compiledDeriv) {
+                    slope = safeEval(fn.compiledDeriv, mathX);
+                }
+
+                // Draw Tangent Line
+                if (showTangent && slope !== null && isFinite(slope)) {
+                    drawTangentLine(mathX, yVal, slope, fn.color);
+                }
+
+                cardContent += `
+                    <div class="pt-1 border-t border-gray-100 dark:border-gray-700/50">
+                        <div class="font-semibold" style="color: ${fn.color}">${fn.expr}</div>
+                        <div>f(${mathX.toFixed(3)}) = <span class="font-bold">${yVal.toFixed(4)}</span></div>
+                        ${slope !== null ? `<div>Slope f'(${mathX.toFixed(3)}) = <span class="font-bold">${slope.toFixed(4)}</span></div>` : ''}
+                    </div>
+                `;
+            });
+
+            cardDetails.innerHTML = cardContent;
+            card.classList.remove('hidden');
+        }
+
+        function drawTangentLine(x0, y0, slope, color) {
+            // Line Equation: y - y0 = m * (x - x0) -> y = m*(x - x0) + y0
+            const x1 = view.xMin;
+            const y1 = slope * (x1 - x0) + y0;
+            const x2 = view.xMax;
+            const y2 = slope * (x2 - x0) + y0;
+
+            ctx.save();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.5 * window.devicePixelRatio;
+            ctx.setLineDash([2 * window.devicePixelRatio, 2 * window.devicePixelRatio]);
+
+            ctx.beginPath();
+            ctx.moveTo(toScreenX(x1), toScreenY(y1));
+            ctx.lineTo(toScreenX(x2), toScreenY(y2));
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // Viewport Zoom & Pan Handlers
+        function setupCanvasInteraction() {
+            const badge = document.getElementById('coordBadge');
+
+            canvas.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                dragStart = { x: e.clientX, y: e.clientY };
+            });
+
+            window.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+
+            canvas.addEventListener('mousemove', (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const px = (e.clientX - rect.left) * window.devicePixelRatio;
+                const py = (e.clientY - rect.top) * window.devicePixelRatio;
+
+                mousePos = { x: px, y: py, inside: true };
+
+                // Handle Drag Pan
+                if (isDragging) {
+                    const dxPx = (e.clientX - dragStart.x) * window.devicePixelRatio;
+                    const dyPx = (e.clientY - dragStart.y) * window.devicePixelRatio;
+
+                    const dxMath = (dxPx / canvas.width) * (view.xMax - view.xMin);
+                    const dyMath = (dyPx / canvas.height) * (view.yMax - view.yMin);
+
+                    view.xMin -= dxMath;
+                    view.xMax -= dxMath;
+                    view.yMin += dyMath;
+                    view.yMax += dyMath;
+
+                    dragStart = { x: e.clientX, y: e.clientY };
+                    syncInputsFromViewport();
+                }
+
+                // Update Hover Coordinates Badge
+                const mx = toMathX(px);
+                const my = toMathY(py);
+                badge.innerText = `x: ${mx.toFixed(3)}, y: ${my.toFixed(3)}`;
+                badge.classList.remove('hidden');
+
+                redraw();
+            });
+
+            canvas.addEventListener('mouseleave', () => {
+                mousePos.inside = false;
+                badge.classList.add('hidden');
+                document.getElementById('inspectionCard').classList.add('hidden');
+                redraw();
+            });
+
+            // Wheel Zooming
+            canvas.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const zoomFactor = e.deltaY > 0 ? 1.15 : 0.85;
+
+                // Zoom centered around mouse cursor location
+                const rect = canvas.getBoundingClientRect();
+                const mousePx = (e.clientX - rect.left) * window.devicePixelRatio;
+                const mousePy = (e.clientY - rect.top) * window.devicePixelRatio;
+
+                const mouseMathX = toMathX(mousePx);
+                const mouseMathY = toMathY(mousePy);
+
+                view.xMin = mouseMathX + (view.xMin - mouseMathX) * zoomFactor;
+                view.xMax = mouseMathX + (view.xMax - mouseMathX) * zoomFactor;
+                view.yMin = mouseMathY + (view.yMin - mouseMathY) * zoomFactor;
+                view.yMax = mouseMathY + (view.yMax - mouseMathY) * zoomFactor;
+
+                syncInputsFromViewport();
+                redraw();
+            }, { passive: false });
+        }
+
+        function zoom(factor) {
+            const centerX = (view.xMin + view.xMax) / 2;
+            const centerY = (view.yMin + view.yMax) / 2;
+
+            const dx = (view.xMax - view.xMin) * factor / 2;
+            const dy = (view.yMax - view.yMin) * factor / 2;
+
+            view.xMin = centerX - dx;
+            view.xMax = centerX + dx;
+            view.yMin = centerY - dy;
+            view.yMax = centerY + dy;
+
+            syncInputsFromViewport();
+            redraw();
+        }
+
+        function resetView() {
+            setViewBounds(-10, 10, -6, 6);
+            redraw();
+        }
+
+        function syncInputsFromViewport() {
+            document.getElementById('xMinInput').value = parseFloat(view.xMin.toFixed(2));
+            document.getElementById('xMaxInput').value = parseFloat(view.xMax.toFixed(2));
+            document.getElementById('yMinInput').value = parseFloat(view.yMin.toFixed(2));
+            document.getElementById('yMaxInput').value = parseFloat(view.yMax.toFixed(2));
+        }
+
+        function updateViewportFromInputs() {
+            const xMin = parseFloat(document.getElementById('xMinInput').value);
+            const xMax = parseFloat(document.getElementById('xMaxInput').value);
+            const yMin = parseFloat(document.getElementById('yMinInput').value);
+            const yMax = parseFloat(document.getElementById('yMaxInput').value);
+
+            if (!isNaN(xMin) && !isNaN(xMax) && xMin < xMax) {
+                view.xMin = xMin;
+                view.xMax = xMax;
+            }
+            if (!isNaN(yMin) && !isNaN(yMax) && yMin < yMax) {
+                view.yMin = yMin;
+                view.yMax = yMax;
+            }
+
+            redraw();
+        }
+
+        // Export Canvas PNG Image
+        function exportPNG() {
+            const link = document.createElement('a');
+            link.download = 'function-plot.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+    </script>
+</body>
+</html>
